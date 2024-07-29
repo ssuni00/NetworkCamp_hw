@@ -18,6 +18,8 @@ Stop-and-Wait Protocol 구현
 * UDP통신을 사용하는 uecho_server.c와 uecho_client.c는 신뢰성있는 데이터전송을 보장하지 않기에 (손실된 패킷을 복구하는 기능이 없음)
 * 이를보완하여 신뢰성있는 데이터전송을 보장하는 Stop-and-WaitProtocol 기반의 프로그램 구현
 * 파일전송이 완료되면 Throughput 출력 (Throughput = 받은데이터양 / 전송시간)
+   <img width="1440" alt="image" src="https://github.com/user-attachments/assets/b058d7ac-ddcf-4710-b416-e87f7c29681e">
+
 
 
 
