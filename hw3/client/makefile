@@ -1,5 +1,3 @@
-# Makefile.client
-
 CC = gcc
 CFLAGS = -Wall
 TARGET = client
