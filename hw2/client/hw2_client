@@ -1,0 +1,81 @@
+#include "protocol.h"
+#include <stdio.h>
+#include <string.h>
+#include <unistd.h>
+#include <arpa/inet.h>
+#include <sys/socket.h>
+#include <fcntl.h>
+
+#define FILENAME "received_test.jpg"
+
+void error_handling(char *message)
+{
+    fputs(message, stderr);
+    fputc('\n', stderr);
+    exit(1);
+}
+
+int main(int argc, char *argv[])
+{
+    int sock, file_fd;
+    struct sockaddr_in serv_adr, from_adr;
+    socklen_t adr_sz;
+    Packet packet;
+    Ack ack;
+    int seq_num = 0;
+
+    if (argc != 3)
+    {
+        printf("Usage: %s <IP> <port>\n", argv[0]);
+        exit(1);
+    }
+
+    sock = socket(PF_INET, SOCK_DGRAM, 0);
+    if (sock == -1)
+        error_handling("socket() error");
+
+    memset(&serv_adr, 0, sizeof(serv_adr));
+    serv_adr.sin_family = AF_INET;
+    serv_adr.sin_addr.s_addr = inet_addr(argv[1]);
+    serv_adr.sin_port = htons(atoi(argv[2]));
+
+    sendto(sock, NULL, 0, 0, (struct sockaddr *)&serv_adr, sizeof(serv_adr));
+
+    file_fd = open(FILENAME, O_WRONLY | O_CREAT | O_TRUNC, 0644);
+    if (file_fd == -1)
+        error_handling("File open error");
+
+    while (1)
+    {
+        adr_sz = sizeof(from_adr);
+        ssize_t recv_len = recvfrom(sock, &packet, sizeof(Packet), 0, (struct sockaddr *)&from_adr, &adr_sz);
+        // 데이터가 성공적으로 수신한 경우
+        if (recv_len > 0)
+        {
+            // 받은 패킷의 시퀀스넘버 출력
+            printf("packet seq_num: %d\n", packet.seq_num);
+
+            // seq_num이랑 원하는 seq_num이 같으면
+            if (packet.seq_num == seq_num)
+            {
+                // 수신한 파일에서 시퀀스넘버값은 빼고
+                write(file_fd, packet.data, recv_len - sizeof(int));
+                ack.ack_num = seq_num;
+                sendto(sock, &ack, sizeof(Ack), 0, (struct sockaddr *)&serv_adr, adr_sz);
+                printf("sent ACK seq_num: %d\n", ack.ack_num);
+                seq_num++;
+            }
+            // 넘버가 일치하지 않는거니까 하나를 빼서 다시 받아야할 넘버로 돌림
+            else
+            {
+                ack.ack_num = seq_num - 1;
+                sendto(sock, &ack, sizeof(Ack), 0, (struct sockaddr *)&serv_adr, adr_sz);
+                printf("Resent ACK seq_num: %d\n", ack.ack_num);
+            }
+        }
+    }
+
+    close(file_fd);
+    close(sock);
+    return 0;
+}
