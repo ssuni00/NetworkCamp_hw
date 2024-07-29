@@ -1,0 +1,166 @@
+#include <stdio.h>
+#include <stdlib.h>
+#include <string.h>
+#include <unistd.h>
+#include <arpa/inet.h>
+#include <sys/socket.h>
+#include <dirent.h>
+
+#define BUF_SIZE 1024
+#define FILE_NAME_MAX 30
+
+void error_handling(char *message);
+
+struct fileInfo
+{
+    int index;
+    unsigned int fileLength;
+    char fileName[FILE_NAME_MAX + 1];
+};
+
+int main(int argc, char *argv[])
+{
+    int serv_sd, clnt_sd;
+    char buf[BUF_SIZE];
+    char cwd[BUF_SIZE];
+    int read_cnt;
+    struct sockaddr_in serv_adr, clnt_adr;
+    socklen_t clnt_adr_sz;
+    struct fileInfo file_info[100];
+    int file_count = 0;
+
+    if (argc != 2)
+    {
+        printf("Usage: %s <port>\n", argv[0]);
+        exit(1);
+    }
+
+    if (getcwd(cwd, sizeof(cwd)) == NULL)
+    {
+        error_handling("getcwd() error");
+    }
+
+    DIR *dir = opendir(cwd);
+    if (dir == NULL)
+    {
+        error_handling("Failed to open directory");
+    }
+
+    serv_sd = socket(PF_INET, SOCK_STREAM, 0);
+    if (serv_sd == -1)
+    {
+        error_handling("socket() error");
+    }
+
+    struct dirent *ent;
+    int file_index = 1;
+    while ((ent = readdir(dir)) != NULL)
+    {
+        if (ent->d_type == DT_REG) // 레귤러파일만 읽음. (., .. 이런거 방지)
+        {
+            FILE *fp = fopen(ent->d_name, "rb");
+            if (fp == NULL)
+            {
+                fprintf(stderr, "Failed to open file: %s\n", ent->d_name);
+                continue;
+            }
+            fseek(fp, 0, SEEK_END);
+            unsigned int file_length = ftell(fp);
+            fclose(fp);
+
+            file_info[file_count].index = file_index++;
+            file_info[file_count].fileLength = file_length;
+            strncpy(file_info[file_count].fileName, ent->d_name, FILE_NAME_MAX);
+            file_info[file_count].fileName[FILE_NAME_MAX] = '\0';
+
+            file_count++;
+            // 최대 100개까지 설정해놔서 파일이 100개 넘으면 걍 멈추게
+            if (file_count >= 100)
+            {
+                break;
+            }
+        }
+    }
+    closedir(dir);
+
+    int opt = 1;
+    setsockopt(serv_sd, SOL_SOCKET, SO_REUSEADDR, &opt, sizeof(opt));
+
+    memset(&serv_adr, 0, sizeof(serv_adr));
+    serv_adr.sin_family = AF_INET;
+    serv_adr.sin_addr.s_addr = htonl(INADDR_ANY);
+    serv_adr.sin_port = htons(atoi(argv[1]));
+
+    if (bind(serv_sd, (struct sockaddr *)&serv_adr, sizeof(serv_adr)) == -1)
+        error_handling("bind() error");
+    if (listen(serv_sd, 5) == -1)
+        error_handling("listen() error");
+
+    clnt_adr_sz = sizeof(clnt_adr);
+    clnt_sd = accept(serv_sd, (struct sockaddr *)&clnt_adr, &clnt_adr_sz);
+    if (clnt_sd == -1)
+    {
+        error_handling("accept() error");
+    }
+
+    // 디렉토리 내의 파일 정보 -> 클라이언트
+    write(clnt_sd, &file_count, sizeof(int));
+    write(clnt_sd, file_info, sizeof(struct fileInfo) * file_count);
+
+    // 클라이언트가 파일 번호를 선택할 때까지 대기
+    while (1)
+    {
+        // 클라이언트로부터 파일 번호 수신
+        read_cnt = read(clnt_sd, buf, BUF_SIZE - 1);
+        // printf("read_cnt: %d", read_cnt);
+        if (read_cnt <= 0)
+            break;
+        buf[read_cnt] = '\0';
+        int file_num = atoi(buf);
+
+        if (file_num == 0)
+        {
+            break;
+        }
+
+        char *file_name = NULL;
+        for (int i = 0; i < file_count; i++)
+        {
+            if (file_info[i].index == file_num)
+            {
+                file_name = file_info[i].fileName;
+                break;
+            }
+        }
+        if (file_name != NULL)
+        {
+            FILE *fp = fopen(file_name, "rb");
+            if (fp == NULL)
+            {
+                fprintf(stderr, "Failed to open file for reading: %s\n", file_name);
+                continue;
+            }
+
+            // 파일 크기 전송
+            unsigned int file_length = file_info[file_num - 1].fileLength;
+            write(clnt_sd, &file_length, sizeof(file_length));
+
+            // 파일 데이터 전송
+            while ((read_cnt = fread(buf, 1, BUF_SIZE, fp)) > 0)
+            {
+                write(clnt_sd, buf, read_cnt);
+            }
+            fclose(fp);
+        }
+    }
+    close(clnt_sd);
+    close(serv_sd);
+    return 0;
+}
+
+void error_handling(char *message)
+{
+    fputs(message, stderr);
+    fputc('\n', stderr);
+    exit(1);
+}

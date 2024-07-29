@@ -1,0 +1,144 @@
+#include <stdio.h>
+#include <stdlib.h>
+#include <string.h>
+#include <unistd.h>
+#include <arpa/inet.h>
+#include <sys/socket.h>
+
+#define BUF_SIZE 1024
+#define FILE_NAME_MAX 30
+
+void error_handling(char *message);
+
+struct fileInfo
+{
+    int index;
+    unsigned int fileLength;
+    char fileName[FILE_NAME_MAX + 1];
+};
+
+int main(int argc, char *argv[])
+{
+    int sd;
+    FILE *fp;
+    char buf[BUF_SIZE];
+    int read_cnt;
+    struct sockaddr_in serv_adr;
+    int select;
+    struct fileInfo file_info[100];
+    int file_count;
+
+    if (argc != 3)
+    {
+        printf("Usage: %s <IP> <port>\n", argv[0]);
+        exit(1);
+    }
+
+    sd = socket(PF_INET, SOCK_STREAM, 0);
+    if (sd == -1)
+    {
+        error_handling("socket() error");
+    }
+
+    memset(&serv_adr, 0, sizeof(serv_adr));
+    serv_adr.sin_family = AF_INET;
+    serv_adr.sin_addr.s_addr = inet_addr(argv[1]);
+    serv_adr.sin_port = htons(atoi(argv[2]));
+
+    if (connect(sd, (struct sockaddr *)&serv_adr, sizeof(serv_adr)) == -1)
+    {
+        error_handling("connect() error");
+    }
+
+    // 서버로부터 파일 목록 읽기
+    // file 갯수부터 읽기
+    read_cnt = read(sd, &file_count, sizeof(int));
+    // file 갯수가 0이면 실패했다는 거니까
+    if (read_cnt <= 0)
+    {
+        error_handling("Failed to receive file count");
+    }
+    // file 갯수가 잘 들어왔으면
+    else
+    {
+        for (int i = 0; i < file_count; i++)
+        {
+            read_cnt = read(sd, &file_info[i], sizeof(struct fileInfo));
+            if (read_cnt <= 0)
+            {
+                error_handling("Failed to receive file information");
+            }
+        }
+    }
+
+    // 서버의 파일목록을 반복문으로 출력
+    for (int i = 0; i < file_count; i++)
+    {
+        printf("%d: %s (%u bytes)\n", file_info[i].index, file_info[i].fileName, file_info[i].fileLength);
+    }
+
+    while (1)
+    {
+        printf("Select file number (0: quit): ");
+        scanf("%d", &select);
+        if (select == 0)
+        {
+            close(sd);
+            return 0;
+        }
+
+        // 선택한 파일 번호를 서버로 전송
+        snprintf(buf, BUF_SIZE, "%d", select);
+        write(sd, buf, strlen(buf));
+
+        // 파일열기
+        char *file_name = NULL;
+        for (int i = 0; i < file_count; i++)
+        {
+            if (file_info[i].index == select)
+            {
+                file_name = file_info[i].fileName;
+                break;
+            }
+        }
+
+        if (file_name != NULL)
+        {
+            fp = fopen(file_name, "wb");
+            if (fp == NULL)
+            {
+                fprintf(stderr, "Failed to open file for writing: %s\n", file_name);
+                break;
+            }
+
+            // 파일 크기 받기
+            unsigned int file_length;
+            read(sd, &file_length, sizeof(file_length));
+
+            // 파일 데이터 받아와서 클라이언트 서버에 쓰기
+            unsigned int received_len = 0;
+            while (received_len < file_length)
+            {
+                read_cnt = read(sd, buf, BUF_SIZE);
+                if (read_cnt <= 0)
+                {
+                    break;
+                }
+                fwrite(buf, 1, read_cnt, fp);
+                received_len += read_cnt;
+            }
+            fclose(fp);
+            printf("Received file: %s\n", file_name);
+        }
+    }
+
+    close(sd);
+    return 0;
+}
+
+void error_handling(char *message)
+{
+    fputs(message, stderr);
+    fputc('\n', stderr);
+    exit(1);
+}
