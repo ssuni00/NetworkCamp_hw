@@ -78,8 +78,6 @@ int main(int argc, char const *argv[])
 {
     int sd;
     struct sockaddr_in serv_adr;
-    // int sock = 0;
-    // struct sockaddr_in serv_addr;
     char buffer[1024] = {0};
     char input[100] = {0};
     int input_length = 0;
@@ -98,30 +96,6 @@ int main(int argc, char const *argv[])
     serv_adr.sin_family = AF_INET;
     serv_adr.sin_addr.s_addr = inet_addr(argv[1]);
     serv_adr.sin_port = htons(atoi(argv[2]));
-
-    // // 소켓 생성
-    // if ((sock = socket(AF_INET, SOCK_STREAM, 0)) < 0)
-    // {
-    //     printf("\n Socket creation error \n");
-    //     return -1;
-    // }
-
-    // serv_addr.sin_family = AF_INET;
-    // serv_addr.sin_port = htons(atoi(argv[2])); // 포트 설정
-
-    // // IP 주소를 바이너리 형태로 변환
-    // if (inet_pton(AF_INET, argv[1], &serv_addr.sin_addr) <= 0)
-    // {
-    //     printf("\nInvalid address/ Address not supported \n");
-    //     return -1;
-    // }
-
-    // // 서버에 연결
-    // if (connect(sock, (struct sockaddr *)&serv_addr, sizeof(serv_addr)) < 0)
-    // {
-    //     printf("\nConnection Failed \n");
-    //     return -1;
-    // }
 
     if (connect(sd, (struct sockaddr *)&serv_adr, sizeof(serv_adr)) == -1)
         error_handling("connect() error");
@@ -150,9 +124,15 @@ int main(int argc, char const *argv[])
         {
             if (input_length > 0)
             {
-                input[--input_length] = '\0';    // 마지막 문자 삭제
-                mvprintw(0, 20, "%s   ", input); // 화면에 <- 표시
-                clrtoeol();                      // 줄 끝까지 지움
+                // input buf에서 마지막 문자를 삭제
+                // 문자열의 끝(\0) 설정
+                input[--input_length] = '\0';
+                // 입력된 문자열을 화면의 특정 위치에 다시 출력
+                // 삭제된 문자를 반영
+                // 20은 화면의 특정 위치를 가리킴
+                mvprintw(0, 20, "%s   ", input);
+                // 현재 커서 위치에서 줄의 끝까지의 화면 내용을 지움
+                clrtoeol();
             }
         }
         else
