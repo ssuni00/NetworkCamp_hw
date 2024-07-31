@@ -31,4 +31,10 @@ typedef struct
     char path[BUFFER_SIZE];
 } Command;
 
+typedef struct
+{
+    int clnt_sd;
+    char current_dir[BUFFER_SIZE]; // 추가된 필드
+} thread_args;
+
 #endif
