@@ -13,7 +13,7 @@ void load_data()
     FILE *file = fopen("data.txt", "r");
     if (!file)
     {
-        perror("Failed to open the file");
+        error_handling("Failed to open the file");
         exit(1);
     }
     // data.txt에서 검색어와 검색 횟수 읽고 -> terms 배열에 저장
