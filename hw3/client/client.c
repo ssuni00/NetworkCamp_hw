@@ -7,7 +7,7 @@ void error_handling(char *message)
     exit(1);
 }
 
-// command -> server & server -> respond
+// 명령을 서버에 전송하고 응답을 출력
 void execute_command(int socket, Command *command)
 {
     send(socket, command, sizeof(*command), 0);
@@ -16,10 +16,11 @@ void execute_command(int socket, Command *command)
     printf("%s\n", response);
 }
 
+// 파일 다운로드
 void download_file(int socket, const char *filename)
 {
     Command command;
-    command.command = DL;
+    command.command = dl;
     strncpy(command.path, filename, sizeof(command.path) - 1);
     command.path[sizeof(command.path) - 1] = '\0';
     send(socket, &command, sizeof(command), 0);
@@ -28,7 +29,18 @@ void download_file(int socket, const char *filename)
     // 서버로부터 파일 크기 수신
     recv(socket, &file_size, sizeof(file_size), 0);
 
+    if (file_size == -1)
+    {
+        printf("File not found on server.\n");
+        return;
+    }
+
     int fd = open(filename, O_WRONLY | O_CREAT, 0666);
+    if (fd == -1)
+    {
+        perror("Failed to open file for writing");
+        return;
+    }
 
     char buffer[BUFFER_SIZE]; // 파일 내용을 받을 버퍼
     ssize_t bytes_received;
@@ -43,15 +55,21 @@ void download_file(int socket, const char *filename)
     printf("Downloaded [%s]\n", filename);
 }
 
+// 파일 업로드
 void upload_file(int socket, const char *filename, const char *server_path)
 {
     Command command;
-    command.command = UP;
+    command.command = up;
     // 서버 경로 + 파일 이름 -> command.path에 저장
     snprintf(command.path, sizeof(command.path), "%s/%s", server_path, filename);
     send(socket, &command, sizeof(command), 0);
 
     int fd = open(filename, O_RDONLY);
+    if (fd == -1)
+    {
+        perror("Failed to open file for reading");
+        return;
+    }
 
     struct stat file_stat;
     // 파일 정보를 가져옴
@@ -81,11 +99,9 @@ int main(int argc, char *argv[])
         exit(1);
     }
 
-    sd = socket(AF_INET, SOCK_STREAM, 0);
+    sd = socket(PF_INET, SOCK_STREAM, 0);
     if (sd == -1)
-    {
         error_handling("socket() error");
-    }
 
     memset(&serv_adr, 0, sizeof(serv_adr));
     serv_adr.sin_family = AF_INET;
@@ -93,69 +109,62 @@ int main(int argc, char *argv[])
     serv_adr.sin_port = htons(atoi(argv[2]));
 
     if (connect(sd, (struct sockaddr *)&serv_adr, sizeof(serv_adr)) == -1)
-    {
         error_handling("connect() error");
-    }
 
-    // 서버의 현재 디렉토리 정보
+    // 서버의 현재 작업 디렉토리 수신 및 출력
     char current_dir[BUFFER_SIZE];
-    // 서버로부터 현재 디렉토리 정보를 수신
     recv(sd, current_dir, sizeof(current_dir), 0);
-    printf("server dir: %s\n", current_dir);
+    printf("Server current directory: %s\n", current_dir);
 
     // 사용자 명령어를 입력받을 버퍼
-    char command_str[BUFFER_SIZE];
+    char command[BUFFER_SIZE];
+    // 서버 경로 설정
+    char server_path[BUFFER_SIZE] = ".";
+    Command cmd;
 
     while (1)
     {
-        printf("> ");
-        if (fgets(command_str, sizeof(command_str), stdin) == NULL)
-        {
-            break; // 입력이 없을 경우
-        }
-
+        printf("Enter command (cd/ls/dl/up): ");
+        fgets(command, sizeof(command), stdin);
         // 입력된 명령어에서 개행 문자를 제거
-        command_str[strcspn(command_str, "\n")] = '\0';
+        command[strcspn(command, "\n")] = 0;
 
-        Command command;
-
-        // 여기도 서버처럼 swtich 쓰고싶었는데 cd, dl, up은 뒤에 공백때문에
-        // 어차피 strncmp다 해줘야함 (if, else if로) 그럼 두번 일해야해서 그냥 if, elseif 사용
-        if (strncmp(command_str, "cd ", 3) == 0)
+        if (strncmp(command, "cd", 2) == 0)
         {
-            command.command = CD;
-            strncpy(command.path, command_str + 3, sizeof(command.path) - 1);
-            command.path[sizeof(command.path) - 1] = '\0';
-            execute_command(sd, &command);
+            cmd.command = cd;
+            strncpy(cmd.path, command + 3, sizeof(cmd.path) - 1);
+            cmd.path[sizeof(cmd.path) - 1] = '\0';
+            execute_command(sd, &cmd);
         }
-        else if (strncmp(command_str, "ls", 2) == 0)
+        else if (strncmp(command, "ls", 2) == 0)
         {
-            command.command = LS;
-            strncpy(command.path, command_str + 3, sizeof(command.path) - 1);
-            command.path[sizeof(command.path) - 1] = '\0';
-            execute_command(sd, &command);
+            cmd.command = ls;
+            strncpy(cmd.path, command + 3, sizeof(cmd.path) - 1);
+            cmd.path[sizeof(cmd.path) - 1] = '\0';
+            execute_command(sd, &cmd);
         }
-        else if (strncmp(command_str, "dl ", 3) == 0)
+        else if (strncmp(command, "dl", 2) == 0)
         {
-            download_file(sd, command_str + 3);
+            download_file(sd, command + 3);
         }
-        else if (strncmp(command_str, "up ", 3) == 0)
+        else if (strncmp(command, "up", 2) == 0)
         {
-            // 파일 이름&서버 경로 추출
-            char *filename = strtok(command_str + 3, " ");
-            char *server_path = strtok(NULL, " ");
-            if (filename && server_path)
+            // 파일 이름과 서버 경로 추출
+            char *local_file = strtok(command + 3, " ");
+            char *remote_path = strtok(NULL, " ");
+            if (remote_path == NULL)
             {
-                upload_file(sd, filename, server_path);
+                remote_path = server_path;
             }
+            upload_file(sd, local_file, remote_path);
         }
-        else if (strncmp(command_str, "exit", 4) == 0)
+        else if (strncmp(command, "exit", 4) == 0)
         {
             break;
         }
         else
         {
-            printf("unknown command\n");
+            printf("Unknown command: %s\n", command);
         }
     }
 
