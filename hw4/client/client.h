@@ -11,7 +11,6 @@
 #include <ncurses.h>
 #include <ctype.h>
 
-void connect_to_server(const char *address, int port);
 void error_handling(char *message);
 char *strcasestr(const char *haystack, const char *needle);
 
