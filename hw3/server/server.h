@@ -34,7 +34,7 @@ typedef struct
 typedef struct
 {
     int clnt_sd;
-    char current_dir[BUFFER_SIZE]; // 추가된 필드
+    char current_dir[BUFFER_SIZE];
 } thread_args;
 
 #endif
