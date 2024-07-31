@@ -114,7 +114,7 @@ int main(int argc, char *argv[])
     // 서버의 현재 작업 디렉토리 수신 및 출력
     char current_dir[BUFFER_SIZE];
     recv(sd, current_dir, sizeof(current_dir), 0);
-    printf("Server current directory: %s\n", current_dir);
+    printf("current dir: %s\n", current_dir);
 
     // 사용자 명령어를 입력받을 버퍼
     char command[BUFFER_SIZE];
@@ -124,7 +124,7 @@ int main(int argc, char *argv[])
 
     while (1)
     {
-        printf("Enter command (cd/ls/dl/up): ");
+        printf("Enter command (cd/ls/dl/up)\n > ");
         fgets(command, sizeof(command), stdin);
         // 입력된 명령어에서 개행 문자를 제거
         command[strcspn(command, "\n")] = 0;
