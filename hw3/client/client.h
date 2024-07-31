@@ -30,4 +30,9 @@ typedef struct
     char path[BUFFER_SIZE];
 } Command;
 
+void error_handling(char *message);
+void execute_command(int socket, Command *command);
+void download_file(int socket, const char *filename);
+void upload_file(int socket, const char *filename, const char *server_path);
+
 #endif
