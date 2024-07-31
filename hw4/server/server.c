@@ -45,26 +45,26 @@ int compare_terms(const void *a, const void *b)
 }
 
 // client의 검색어에 따라 상위 검색어를 찾음
-void find_top_terms(const char *query, char *result)
+void find_top_terms(const char *word, char *result)
 {
     int count = 0;
     SearchTerm filtered_terms[1000];
     int filtered_count = 0;
-    char lower_query[BUFFER_SIZE];
+    char lower_word[BUFFER_SIZE];
 
     // 입력된 검색어가 비어있거나 공백만 있을 경우
-    if (strlen(query) == 0 || (strlen(query) == 1 && isspace((unsigned char)query[0])))
+    if (strlen(word) == 0 || (strlen(word) == 1 && isspace((unsigned char)word[0])))
     {
         strcpy(result, "No results found\n");
         return;
     }
 
-    // 검색어를 소문자로 변환하여 lower_query에 저장
-    for (int i = 0; query[i]; i++)
+    // 검색어를 소문자로 변환하여 lower_word에 저장
+    for (int i = 0; word[i]; i++)
     {
-        lower_query[i] = tolower((unsigned char)query[i]);
+        lower_word[i] = tolower((unsigned char)word[i]);
     }
-    lower_query[strlen(query)] = '\0';
+    lower_word[strlen(word)] = '\0';
 
     // data.txt에서 소문자로 변환된 검색어를 사용하여 일치하는 항목 찾기
     for (int i = 0; i < term_count; i++)
@@ -77,7 +77,7 @@ void find_top_terms(const char *query, char *result)
         lower_keyword[strlen(terms[i].keyword)] = '\0';
 
         // 검색어가 포함된 항목을 filtered_terms에 저장
-        if (strstr(lower_keyword, lower_query) != NULL)
+        if (strstr(lower_keyword, lower_word) != NULL)
         {
             filtered_terms[filtered_count++] = terms[i];
         }
