@@ -33,7 +33,8 @@ Simple Remote Shell 구현
   - <img width="465" alt="image" src="https://github.com/user-attachments/assets/447b2506-c0fc-4834-8864-4bb96556a457">
 
 
+## NetworkCamp_Day4
+자동 완성 기능 기반 Search Engine 구현
 
-
-
+* 사용법
 
