@@ -1,6 +1,5 @@
 #include "server.h"
 
-// 에러 메시지를 출력하고 프로그램을 종료하는 함수
 void error_handling(char *message)
 {
     fputs(message, stderr);
@@ -8,22 +7,21 @@ void error_handling(char *message)
     exit(1);
 }
 
-// 클라이언트 요청을 처리하는 함수, 각 클라이언트마다 스레드에서 실행됨
 void *handle_client(void *arg)
 {
     // arg로 받은 스레드 인수 구조체
     thread_args *args = (thread_args *)arg;
     int clnt_sd = args->clnt_sd;
-    char *current_dir = args->current_dir; // 각 클라이언트의 현재 작업 디렉토리
+    // 각 client 현재 작업 dir
+    char *current_dir = args->current_dir;
 
-    // 클라이언트에게 초기 디렉토리 정보 전송
+    // dir info 전송 -> client
     send(clnt_sd, current_dir, strlen(current_dir) + 1, 0);
 
-    Command command; // 클라이언트 명령 수신 저장 구조체
+    Command command;
 
     while (1)
     {
-        // 클라이언트 명령 수신
         if (recv(clnt_sd, &command, sizeof(command), 0) <= 0)
         {
             close(clnt_sd);
@@ -36,7 +34,7 @@ void *handle_client(void *arg)
         case cd:
             if (chdir(command.path) == 0)
             {
-                // 클라이언트별로 현재 디렉토리 업데이트
+                // client별로 현재 dir update
                 getcwd(current_dir, sizeof(args->current_dir));
             }
             else
@@ -44,7 +42,7 @@ void *handle_client(void *arg)
                 strncpy(current_dir, "Failed to change directory", sizeof(args->current_dir) - 1);
                 current_dir[sizeof(args->current_dir) - 1] = '\0';
             }
-            // 결과 전송 -> 클라이언트
+            // 결과 전송 -> client
             send(clnt_sd, current_dir, strlen(current_dir) + 1, 0);
             break;
 
